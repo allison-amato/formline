@@ -1,0 +1,47 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Client {
+  id        String     @id @default(cuid())
+  name      String
+  goal      String // general | muscle | loss | pain
+  target    String
+  week      Int        @default(1)
+  status    String     @default("on-track") // on-track | plan-due | needs-attention
+  likedIds  String // JSON array of Exercise ids
+  createdAt DateTime   @default(now())
+  weeks     PlanWeek[]
+}
+
+model Exercise {
+  id         String  @id
+  nameEn     String
+  nameEs     String
+  muscle     String // glutes | hamstrings | quads | chest | back | shoulders | core
+  muscleEs   String
+  difficulty String // beginner | intermediate | advanced
+  baseWeight Float?
+  reps       Int
+  useCount   Int     @default(0) // picked-in-builder frequency, for the "recent/frequent" picker section
+  videoUrl   String? // YouTube demo link
+}
+
+model PlanWeek {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  week      Int
+  days      String // JSON: Array<Array<{ exerciseId, sets, reps, weight, notes? }>>
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, week])
+}

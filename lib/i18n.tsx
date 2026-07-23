@@ -1,0 +1,229 @@
+"use client";
+
+import { createContext, useContext, useEffect, useState } from "react";
+
+export type Lang = "en" | "es";
+
+const STRINGS: Record<Lang, Record<string, string>> = {
+  en: {
+    "nav.subtitle": "Trainer console — Coach Allie",
+    "nav.clients": "Clients",
+    "nav.library": "Exercise library",
+
+    "roster.heading": "Clients",
+    "roster.activeThisWeek": "{n} active this week",
+    "roster.statActive": "Active clients",
+    "roster.statPlansDue": "Plans due",
+    "roster.statAttention": "Needs attention",
+    "roster.searchPlaceholder": "Search clients…",
+    "roster.colClient": "Client",
+    "roster.colGoal": "Goal",
+    "roster.colWeek": "Week",
+    "roster.colStatus": "Status",
+    "roster.weekValue": "Week {n}",
+
+    "builder.back": "← Clients",
+    "builder.export": "Export to Excel",
+    "builder.startWeek": "Start Week {n} →",
+    "builder.editGoal": "Edit goal",
+    "builder.targetLine": "{goal} · target: {target} · Week {week}",
+    "builder.preferenceHistory": "Preference history",
+    "builder.copyDayTo": "Copy {day} to…",
+    "builder.applyExercisesTo": "Apply {day}'s exercises to:",
+    "builder.apply": "Apply",
+    "builder.cancel": "Cancel",
+    "builder.colDay": "Day",
+    "builder.colExercise": "Exercise",
+    "builder.colMuscle": "Muscle",
+    "builder.colSets": "Sets",
+    "builder.colReps": "Reps",
+    "builder.colWeight": "Weight",
+    "builder.colNotes": "Notes",
+    "builder.preferred": "preferred",
+    "builder.notesPlaceholder": "Notes",
+    "builder.swap": "Swap",
+    "builder.addExercise": "+ Add exercise",
+    "builder.savePlan": "Save plan",
+    "builder.planSaved": "Plan saved.",
+    "builder.noDraftYet": "No draft yet for week {n}.",
+    "builder.buildFrom": "Build one from {name}'s goal and liked exercises.",
+    "builder.duplicatePreviousWeek": "Duplicate previous week",
+    "builder.autoSuggest": "Auto-suggest draft plan",
+    "builder.swapExerciseTitle": "Swap exercise",
+    "builder.addExerciseTitle": "Add exercise",
+    "builder.searchExercises": "Search exercises…",
+    "builder.muscleAll": "All",
+    "builder.recentlyUsed": "Recently used",
+    "builder.allExercises": "All exercises",
+    "builder.weightUnitBW": "BW",
+    "builder.weightUnitKg": "kg",
+
+    "goal.heading": "{name}'s goal",
+    "goal.subheading": "Set the target that shapes their plan.",
+    "goal.primaryGoal": "Primary goal",
+    "goal.targetLabel": "Target",
+    "goal.targetPlaceholder": "e.g. squat 60kg by October",
+    "goal.save": "Save goal",
+    "goal.saved": "Saved.",
+
+    "library.heading": "Exercise library",
+    "library.count": "{n} exercises · attach a YouTube demo link to any exercise",
+    "library.noVideo": "No video",
+    "library.urlPlaceholder": "https://www.youtube.com/watch?v=…",
+    "library.save": "Save",
+    "library.saved": "Saved.",
+
+    "export.name": "NAME",
+    "export.trainer": "TRAINER",
+    "export.objective": "OBJECTIVE",
+    "export.observations": "OBSERVATIONS",
+    "export.week": "WEEK",
+    "export.warmup": "WARM-UP (X4)",
+    "export.trainerName": "Allie",
+    "library.errorInvalidUrl": "That doesn't look like a YouTube link (watch/youtu.be/shorts/embed).",
+
+    "notes.autoTranslated": "(machine-translated)",
+    "notes.translationUnavailable": "(translation unavailable — showing original)",
+    "notes.translating": "Translating…",
+
+    "goal.general": "General fitness",
+    "goal.muscle": "Muscle growth",
+    "goal.loss": "Weight loss",
+    "goal.pain": "Pain management",
+
+    "status.on-track": "On track",
+    "status.plan-due": "Plan due",
+    "status.needs-attention": "Needs attention",
+  },
+  es: {
+    "nav.subtitle": "Consola del entrenador — Coach Allie",
+    "nav.clients": "Clientes",
+    "nav.library": "Biblioteca de ejercicios",
+
+    "roster.heading": "Clientes",
+    "roster.activeThisWeek": "{n} activos esta semana",
+    "roster.statActive": "Clientes activos",
+    "roster.statPlansDue": "Planes pendientes",
+    "roster.statAttention": "Necesitan atención",
+    "roster.searchPlaceholder": "Buscar clientes…",
+    "roster.colClient": "Cliente",
+    "roster.colGoal": "Objetivo",
+    "roster.colWeek": "Semana",
+    "roster.colStatus": "Estado",
+    "roster.weekValue": "Semana {n}",
+
+    "builder.back": "← Clientes",
+    "builder.export": "Exportar a Excel",
+    "builder.startWeek": "Comenzar semana {n} →",
+    "builder.editGoal": "Editar objetivo",
+    "builder.targetLine": "{goal} · objetivo: {target} · Semana {week}",
+    "builder.preferenceHistory": "Historial de preferencias",
+    "builder.copyDayTo": "Copiar {day} a…",
+    "builder.applyExercisesTo": "Aplicar los ejercicios de {day} a:",
+    "builder.apply": "Aplicar",
+    "builder.cancel": "Cancelar",
+    "builder.colDay": "Día",
+    "builder.colExercise": "Ejercicio",
+    "builder.colMuscle": "Músculo",
+    "builder.colSets": "Series",
+    "builder.colReps": "Repeticiones",
+    "builder.colWeight": "Peso",
+    "builder.colNotes": "Notas",
+    "builder.preferred": "preferido",
+    "builder.notesPlaceholder": "Notas",
+    "builder.swap": "Cambiar",
+    "builder.addExercise": "+ Agregar ejercicio",
+    "builder.savePlan": "Guardar plan",
+    "builder.planSaved": "Plan guardado.",
+    "builder.noDraftYet": "Aún no hay borrador para la semana {n}.",
+    "builder.buildFrom": "Crea uno a partir del objetivo y los ejercicios preferidos de {name}.",
+    "builder.duplicatePreviousWeek": "Duplicar semana anterior",
+    "builder.autoSuggest": "Sugerir borrador automáticamente",
+    "builder.swapExerciseTitle": "Cambiar ejercicio",
+    "builder.addExerciseTitle": "Agregar ejercicio",
+    "builder.searchExercises": "Buscar ejercicios…",
+    "builder.muscleAll": "Todos",
+    "builder.recentlyUsed": "Usados recientemente",
+    "builder.allExercises": "Todos los ejercicios",
+    "builder.weightUnitBW": "PC",
+    "builder.weightUnitKg": "kg",
+
+    "goal.heading": "Objetivo de {name}",
+    "goal.subheading": "Define el objetivo que da forma a su plan.",
+    "goal.primaryGoal": "Objetivo principal",
+    "goal.targetLabel": "Objetivo",
+    "goal.targetPlaceholder": "ej. sentadilla 60kg para octubre",
+    "goal.save": "Guardar objetivo",
+    "goal.saved": "Guardado.",
+
+    "library.heading": "Biblioteca de ejercicios",
+    "library.count": "{n} ejercicios · adjunta un enlace de demostración de YouTube a cualquier ejercicio",
+    "library.noVideo": "Sin video",
+    "library.urlPlaceholder": "https://www.youtube.com/watch?v=…",
+    "library.save": "Guardar",
+    "library.saved": "Guardado.",
+    "library.errorInvalidUrl": "Eso no parece un enlace de YouTube (watch/youtu.be/shorts/embed).",
+
+    "export.name": "NOMBRE",
+    "export.trainer": "ENTRENADOR",
+    "export.objective": "OBJETIVO",
+    "export.observations": "OBSERVACIONES",
+    "export.week": "SEMANA",
+    "export.warmup": "CALENTAMIENTO (X4)",
+    "export.trainerName": "Allie",
+
+    "notes.autoTranslated": "(traducción automática)",
+    "notes.translationUnavailable": "(traducción no disponible — mostrando el original)",
+    "notes.translating": "Traduciendo…",
+
+    "goal.general": "Preparación física general",
+    "goal.muscle": "Aumento muscular",
+    "goal.loss": "Pérdida de peso",
+    "goal.pain": "Manejo del dolor",
+
+    "status.on-track": "Al día",
+    "status.plan-due": "Plan pendiente",
+    "status.needs-attention": "Necesita atención",
+  },
+};
+
+export function t(lang: Lang, key: string, vars: Record<string, string | number> = {}): string {
+  let str = STRINGS[lang][key] ?? STRINGS.en[key] ?? key;
+  for (const [k, v] of Object.entries(vars)) {
+    str = str.replace(`{${k}}`, String(v));
+  }
+  return str;
+}
+
+type LanguageContextValue = { lang: Lang; setLang: (lang: Lang) => void };
+
+const LanguageContext = createContext<LanguageContextValue | null>(null);
+
+const STORAGE_KEY = "formline-lang";
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [lang, setLangState] = useState<Lang>("en");
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored === "en" || stored === "es") setLangState(stored);
+  }, []);
+
+  function setLang(next: Lang) {
+    setLangState(next);
+    window.localStorage.setItem(STORAGE_KEY, next);
+  }
+
+  return <LanguageContext.Provider value={{ lang, setLang }}>{children}</LanguageContext.Provider>;
+}
+
+export function useLang(): LanguageContextValue {
+  const ctx = useContext(LanguageContext);
+  if (!ctx) throw new Error("useLang must be used within a LanguageProvider");
+  return ctx;
+}
+
+export function useT() {
+  const { lang } = useLang();
+  return (key: string, vars?: Record<string, string | number>) => t(lang, key, vars);
+}
