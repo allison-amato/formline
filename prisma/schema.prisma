@@ -19,6 +19,7 @@ model Client {
   status    String     @default("on-track") // on-track | plan-due | needs-attention
   likedIds  String // JSON array of Exercise ids
   createdAt DateTime   @default(now())
+  planSentAt DateTime? // last time a plan export was triggered for this client
   weeks     PlanWeek[]
 }
 

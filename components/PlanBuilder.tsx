@@ -9,6 +9,7 @@ import {
   advanceWeek,
   savePlan,
   incrementExerciseUse,
+  recordPlanSent,
   translateNote,
 } from "@/app/actions";
 import { DAY_LABELS, MUSCLE_LABELS, STATUS_TAGCLASS, type DraftDay } from "@/lib/constants";
@@ -36,7 +37,15 @@ type ClientData = {
   week: number;
   status: string;
   likedIds: string[];
+  planSentAt: Date | null;
 };
+
+function formatDate(d: Date) {
+  const dt = new Date(d);
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${mm}/${dd}/${dt.getFullYear()}`;
+}
 
 type PickerState = {
   open: boolean;
@@ -66,6 +75,7 @@ export default function PlanBuilder({
   const { lang } = useLang();
   const t = useT();
   const [days, setDays] = useState<DraftDay[] | null>(initialDraft);
+  const [planSentAt, setPlanSentAt] = useState<Date | null>(client.planSentAt);
   const [dayIndex, setDayIndex] = useState(0);
   const [picker, setPicker] = useState<PickerState>(CLOSED_PICKER);
   const [showToast, setShowToast] = useState(false);
@@ -146,6 +156,9 @@ export default function PlanBuilder({
   function onExport() {
     if (!days) return;
     exportPlanToXlsx(client, days, libById, lang, allWeeks).catch(() => {});
+    recordPlanSent(client.id)
+      .then((result) => setPlanSentAt(result.planSentAt))
+      .catch(() => {});
   }
 
   function updateRow(idx: number, patch: Partial<DraftDay[number]>) {
@@ -262,6 +275,11 @@ export default function PlanBuilder({
       <div className="text-muted" style={{ fontSize: 13 }}>
         {t("builder.targetLine", { goal: goalLabel, target: client.target, week: client.week })}
       </div>
+      {planSentAt && (
+        <div className="text-muted" style={{ fontSize: 12 }}>
+          {t("builder.planSentOn", { date: formatDate(planSentAt) })}
+        </div>
+      )}
 
       <div style={{ marginTop: "var(--space-4)" }}>
         <h6>{t("builder.preferenceHistory")}</h6>

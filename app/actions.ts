@@ -1,15 +1,65 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { GOAL_SCHEME, DAY_TEMPLATES, weekMultFor, type DraftDay } from "@/lib/constants";
+import { GOAL_SCHEME, DAY_TEMPLATES, MUSCLE_KEYS, MUSCLE_LABELS, STATUS_TAGCLASS, weekMultFor, type DraftDay } from "@/lib/constants";
 import { extractYoutubeId } from "@/lib/youtube";
+
+const STATUS_KEYS = Object.keys(STATUS_TAGCLASS);
+const GOAL_KEYS = Object.keys(GOAL_SCHEME);
 
 export async function saveGoal(clientId: string, goal: string, target: string) {
   await prisma.client.update({ where: { id: clientId }, data: { goal, target } });
   revalidatePath(`/clients/${clientId}`);
   revalidatePath(`/clients/${clientId}/goal`);
   revalidatePath("/clients");
+}
+
+export async function createClient(input: {
+  name: string;
+  goal: string;
+  week: number;
+  status: string;
+}): Promise<
+  | { ok: true; client: { id: string; name: string; goal: string; week: number; status: string } }
+  | { ok: false; errorCode: "missing_fields" }
+> {
+  const name = input.name.trim();
+  const week = Math.max(1, Math.round(input.week) || 1);
+
+  if (!name || !GOAL_KEYS.includes(input.goal) || !STATUS_KEYS.includes(input.status)) {
+    return { ok: false, errorCode: "missing_fields" };
+  }
+
+  const client = await prisma.client.create({
+    data: {
+      name,
+      goal: input.goal,
+      target: "",
+      week,
+      status: input.status,
+      likedIds: "[]",
+    },
+  });
+
+  revalidatePath("/clients");
+  return {
+    ok: true,
+    client: { id: client.id, name: client.name, goal: client.goal, week: client.week, status: client.status },
+  };
+}
+
+export async function deleteClient(clientId: string) {
+  await prisma.client.delete({ where: { id: clientId } });
+  revalidatePath("/clients");
+}
+
+export async function recordPlanSent(clientId: string): Promise<{ ok: true; planSentAt: Date }> {
+  const planSentAt = new Date();
+  await prisma.client.update({ where: { id: clientId }, data: { planSentAt } });
+  revalidatePath(`/clients/${clientId}`);
+  return { ok: true, planSentAt };
 }
 
 export async function autoSuggestDraft(clientId: string): Promise<DraftDay[]> {
@@ -105,6 +155,105 @@ export async function updateExerciseVideo(
   await prisma.exercise.update({ where: { id: exerciseId }, data: { videoUrl: trimmed } });
   revalidatePath("/library");
   return { ok: true, videoUrl: trimmed };
+}
+
+async function googleTranslate(
+  text: string,
+  target: "en" | "es"
+): Promise<{ translated: string; detectedSourceLanguage: string } | null> {
+  const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY;
+  if (!apiKey || !text.trim()) return null;
+
+  try {
+    const res = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: text, target, format: "text" }),
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const translation = data?.data?.translations?.[0];
+    if (!translation || typeof translation.translatedText !== "string") return null;
+    return {
+      translated: translation.translatedText,
+      detectedSourceLanguage: translation.detectedSourceLanguage ?? "en",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function createExercise(input: {
+  name: string;
+  muscle: string;
+  videoUrl: string;
+}): Promise<
+  | {
+      ok: true;
+      exercise: { id: string; nameEn: string; nameEs: string; muscle: string; videoUrl: string | null };
+    }
+  | { ok: false; errorCode: "missing_fields" | "invalid_url" }
+> {
+  const name = input.name.trim();
+
+  if (!name || !MUSCLE_KEYS.includes(input.muscle)) {
+    return { ok: false, errorCode: "missing_fields" };
+  }
+
+  const rawUrl = input.videoUrl.trim();
+  let videoUrl: string | null = null;
+  if (rawUrl) {
+    if (!extractYoutubeId(rawUrl)) return { ok: false, errorCode: "invalid_url" };
+    videoUrl = rawUrl;
+  }
+
+  // The trainer types the name in whichever language is convenient; detect
+  // which one and machine-translate to fill the other. If the translation
+  // API is unavailable, fall back to storing the same text in both columns
+  // rather than blocking exercise creation.
+  let nameEn = name;
+  let nameEs = name;
+  const guess = await googleTranslate(name, "es");
+  if (guess) {
+    if (guess.detectedSourceLanguage === "es") {
+      nameEs = name;
+      const reverse = await googleTranslate(name, "en");
+      nameEn = reverse ? reverse.translated : name;
+    } else {
+      nameEn = name;
+      nameEs = guess.translated;
+    }
+  }
+
+  // muscleEs mirrors the primary (pre-"·") term from MUSCLE_LABELS, matching
+  // the convention already used by the seed data (e.g. "glutes" -> "Glúteos").
+  const muscleEs = MUSCLE_LABELS.es[input.muscle].split(" · ")[0];
+
+  const exercise = await prisma.exercise.create({
+    data: {
+      id: randomUUID(),
+      nameEn,
+      nameEs,
+      muscle: input.muscle,
+      muscleEs,
+      difficulty: "intermediate",
+      reps: 10,
+      videoUrl,
+    },
+  });
+
+  revalidatePath("/library");
+  return {
+    ok: true,
+    exercise: {
+      id: exercise.id,
+      nameEn: exercise.nameEn,
+      nameEs: exercise.nameEs,
+      muscle: exercise.muscle,
+      videoUrl: exercise.videoUrl,
+    },
+  };
 }
 
 export async function translateNote(text: string): Promise<{ ok: true; translated: string } | { ok: false }> {

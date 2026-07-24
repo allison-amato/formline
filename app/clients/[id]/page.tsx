@@ -39,6 +39,7 @@ export default async function ClientBuilderPage({
           week: client.week,
           status: client.status,
           likedIds: JSON.parse(client.likedIds),
+          planSentAt: client.planSentAt,
         }}
         initialDraft={initialDraft}
         hasPreviousWeek={hasPreviousWeek}

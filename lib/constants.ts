@@ -21,6 +21,8 @@ export const MUSCLE_LABELS: Record<Lang, Record<string, string>> = {
   },
 };
 
+export const MUSCLE_KEYS = Object.keys(MUSCLE_LABELS.en);
+
 export const WEEK_MULT: Record<number, number> = { 1: 0.85, 2: 0.9, 3: 1, 4: 0.8 };
 
 // Training weeks cycle through the same 4-week progression (build, build,

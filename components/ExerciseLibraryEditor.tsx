@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { updateExerciseVideo } from "@/app/actions";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { createExercise, translateNote, updateExerciseVideo } from "@/app/actions";
 import { extractYoutubeId } from "@/lib/youtube";
-import { MUSCLE_LABELS } from "@/lib/constants";
+import { MUSCLE_KEYS, MUSCLE_LABELS } from "@/lib/constants";
 import { useLang, useT } from "@/lib/i18n";
 
 type Exercise = {
@@ -14,15 +14,44 @@ type Exercise = {
   videoUrl: string | null;
 };
 
-export default function ExerciseLibraryEditor({ exercises }: { exercises: Exercise[] }) {
+const EMPTY_FORM = { name: "", muscle: "", videoUrl: "" };
+
+export default function ExerciseLibraryEditor({ exercises: initialExercises }: { exercises: Exercise[] }) {
   const { lang } = useLang();
   const t = useT();
+  const [exercises, setExercises] = useState(initialExercises);
   const [values, setValues] = useState<Record<string, string>>(
-    Object.fromEntries(exercises.map((e) => [e.id, e.videoUrl ?? ""]))
+    Object.fromEntries(initialExercises.map((e) => [e.id, e.videoUrl ?? ""]))
   );
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [savedFlash, setSavedFlash] = useState<Record<string, boolean>>({});
   const [isPending, startTransition] = useTransition();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [createError, setCreateError] = useState<string | undefined>();
+  const [isCreating, startCreating] = useTransition();
+
+  // Exercises created while the translate API was unavailable are saved
+  // with nameEs === nameEn as a fallback. Lazily machine-translate those to
+  // Spanish on first view, caching the result here (not persisted to the
+  // exercise record — same lazy/ephemeral pattern as plan notes).
+  const [esOverrides, setEsOverrides] = useState<Record<string, string>>({});
+  const translationAttempts = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (lang !== "es") return;
+    exercises.forEach((ex) => {
+      const untranslated = ex.nameEn.trim().toLowerCase() === ex.nameEs.trim().toLowerCase();
+      if (!untranslated || esOverrides[ex.id] || translationAttempts.current.has(ex.id)) return;
+      translationAttempts.current.add(ex.id);
+      translateNote(ex.nameEn).then((result) => {
+        if (result.ok) {
+          setEsOverrides((prev) => ({ ...prev, [ex.id]: result.translated }));
+        }
+      });
+    });
+  }, [lang, exercises, esOverrides]);
 
   function onSave(id: string) {
     const value = values[id] ?? "";
@@ -39,10 +68,42 @@ export default function ExerciseLibraryEditor({ exercises }: { exercises: Exerci
     });
   }
 
+  function openDialog() {
+    setForm(EMPTY_FORM);
+    setCreateError(undefined);
+    setDialogOpen(true);
+  }
+
+  function onCreate() {
+    setCreateError(undefined);
+    startCreating(async () => {
+      const result = await createExercise(form);
+      if (result.ok) {
+        const created = result.exercise;
+        setExercises((prev) => [{ ...created }, ...prev]);
+        setValues((prev) => ({ ...prev, [created.id]: created.videoUrl ?? "" }));
+        setDialogOpen(false);
+      } else if (result.errorCode === "invalid_url") {
+        setCreateError(t("library.errorInvalidUrl"));
+      } else {
+        setCreateError(t("library.errorMissingFields"));
+      }
+    });
+  }
+
+  const canCreate = form.name.trim() !== "" && form.muscle !== "";
+
   return (
     <>
-      <h2 style={{ marginBottom: 2 }}>{t("library.heading")}</h2>
-      <div className="text-muted" style={{ fontSize: 13 }}>{t("library.count", { n: exercises.length })}</div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-4)" }}>
+        <div>
+          <h2 style={{ marginBottom: 2 }}>{t("library.heading")}</h2>
+          <div className="text-muted" style={{ fontSize: 13 }}>{t("library.count", { n: exercises.length })}</div>
+        </div>
+        <button className="btn btn-primary" style={{ flex: "none" }} onClick={openDialog}>
+          {t("library.addExercise")}
+        </button>
+      </div>
 
       <div className="card" style={{ marginTop: "var(--space-5)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -74,7 +135,7 @@ export default function ExerciseLibraryEditor({ exercises }: { exercises: Exerci
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{lang === "es" ? ex.nameEs : ex.nameEn}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{lang === "es" ? (esOverrides[ex.id] ?? ex.nameEs) : ex.nameEn}</div>
                   <div className="text-muted" style={{ fontSize: 11.5, marginBottom: 6 }}>{MUSCLE_LABELS[lang][ex.muscle] ?? ex.muscle}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <input
@@ -100,6 +161,68 @@ export default function ExerciseLibraryEditor({ exercises }: { exercises: Exerci
           })}
         </div>
       </div>
+
+      {dialogOpen && (
+        <div className="dialog-backdrop" style={{ position: "fixed", inset: 0, padding: "var(--space-6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="dialog" style={{ width: 480 }}>
+            <div className="dialog-title">{t("library.addExerciseTitle")}</div>
+
+            <div className="field">
+              <label>{t("library.nameLabel")}</label>
+              <input
+                className="input"
+                placeholder={t("library.namePlaceholder")}
+                value={form.name}
+                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+              <div className="text-muted" style={{ fontSize: 11, marginTop: 4 }}>
+                {t("library.nameHelp")}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>{t("library.muscleLabel")}</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {MUSCLE_KEYS.map((key) => {
+                  const active = form.muscle === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`btn ${active ? "btn-primary" : "btn-secondary"}`}
+                      style={{ fontSize: 11.5, padding: "5px 10px" }}
+                      onClick={() => setForm((prev) => ({ ...prev, muscle: key }))}
+                    >
+                      {MUSCLE_LABELS[lang][key]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>{t("library.videoLabelOptional")}</label>
+              <input
+                className="input"
+                placeholder={t("library.urlPlaceholder")}
+                value={form.videoUrl}
+                onChange={(e) => setForm((prev) => ({ ...prev, videoUrl: e.target.value }))}
+              />
+            </div>
+
+            {createError && (
+              <div style={{ fontSize: 12, color: "#a13636" }}>{createError}</div>
+            )}
+
+            <div className="dialog-actions">
+              <button className="btn btn-secondary" onClick={() => setDialogOpen(false)}>{t("builder.cancel")}</button>
+              <button className="btn btn-primary" disabled={!canCreate || isCreating} onClick={onCreate}>
+                {t("library.create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

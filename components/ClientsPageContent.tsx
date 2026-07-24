@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
+import { createClient, deleteClient } from "@/app/actions";
 import { useT, useLang } from "@/lib/i18n";
-import { STATUS_TAGCLASS } from "@/lib/constants";
+import { GOAL_SCHEME, STATUS_TAGCLASS } from "@/lib/constants";
+import Stepper from "@/components/Stepper";
 
 type Row = {
   id: string;
@@ -15,13 +17,23 @@ type Row = {
 
 type SortKey = "name" | "goal" | "week" | "status";
 
-export default function ClientsPageContent({ clients }: { clients: Row[] }) {
+const GOAL_KEYS = Object.keys(GOAL_SCHEME);
+const STATUS_KEYS = Object.keys(STATUS_TAGCLASS);
+const EMPTY_FORM = { name: "", goal: "", week: 1, status: "on-track" };
+
+export default function ClientsPageContent({ clients: initialClients }: { clients: Row[] }) {
   const router = useRouter();
   const t = useT();
   const { lang } = useLang();
+  const [clients, setClients] = useState(initialClients);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [createError, setCreateError] = useState<string | undefined>();
+  const [isCreating, startCreating] = useTransition();
 
   const activeCount = clients.length;
   const plansDueCount = clients.filter((c) => c.status === "plan-due").length;
@@ -55,6 +67,34 @@ export default function ClientsPageContent({ clients }: { clients: Row[] }) {
 
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "");
 
+  function openDialog() {
+    setForm(EMPTY_FORM);
+    setCreateError(undefined);
+    setDialogOpen(true);
+  }
+
+  function onCreate() {
+    setCreateError(undefined);
+    startCreating(async () => {
+      const result = await createClient(form);
+      if (result.ok) {
+        setClients((prev) => [...prev, result.client]);
+        setDialogOpen(false);
+      } else {
+        setCreateError(t("roster.errorMissingFields"));
+      }
+    });
+  }
+
+  function onDelete(e: MouseEvent, client: Row) {
+    e.stopPropagation();
+    if (!window.confirm(t("roster.removeConfirm", { name: client.name }))) return;
+    setClients((prev) => prev.filter((c) => c.id !== client.id));
+    deleteClient(client.id).catch(() => {});
+  }
+
+  const canCreate = form.name.trim() !== "" && form.goal !== "" && form.status !== "";
+
   const th = (label: string, key: SortKey) => (
     <th
       style={{
@@ -75,8 +115,15 @@ export default function ClientsPageContent({ clients }: { clients: Row[] }) {
 
   return (
     <>
-      <h2 style={{ marginBottom: 2 }}>{t("roster.heading")}</h2>
-      <div className="text-muted" style={{ fontSize: 13 }}>{t("roster.activeThisWeek", { n: activeCount })}</div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-4)" }}>
+        <div>
+          <h2 style={{ marginBottom: 2 }}>{t("roster.heading")}</h2>
+          <div className="text-muted" style={{ fontSize: 13 }}>{t("roster.activeThisWeek", { n: activeCount })}</div>
+        </div>
+        <button className="btn btn-primary" style={{ flex: "none" }} onClick={openDialog}>
+          {t("roster.addClient")}
+        </button>
+      </div>
 
       <div
         style={{
@@ -117,6 +164,7 @@ export default function ClientsPageContent({ clients }: { clients: Row[] }) {
               {th(t("roster.colGoal"), "goal")}
               {th(t("roster.colWeek"), "week")}
               {th(t("roster.colStatus"), "status")}
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -134,11 +182,90 @@ export default function ClientsPageContent({ clients }: { clients: Row[] }) {
                 <td style={{ padding: "12px 10px" }}>
                   <div className={`tag ${STATUS_TAGCLASS[c.status] ?? "tag-neutral"}`}>{t(`status.${c.status}`)}</div>
                 </td>
+                <td style={{ padding: "12px 10px", textAlign: "right" }}>
+                  <button className="btn btn-ghost" style={{ fontSize: 11.5 }} onClick={(e) => onDelete(e, c)}>
+                    {t("roster.remove")}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {dialogOpen && (
+        <div className="dialog-backdrop" style={{ position: "fixed", inset: 0, padding: "var(--space-6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="dialog" style={{ width: 440 }}>
+            <div className="dialog-title">{t("roster.addClientTitle")}</div>
+
+            <div className="field">
+              <label>{t("roster.nameLabel")}</label>
+              <input
+                className="input"
+                placeholder={t("roster.namePlaceholder")}
+                value={form.name}
+                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+
+            <div className="field">
+              <label>{t("goal.primaryGoal")}</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {GOAL_KEYS.map((key) => {
+                  const active = form.goal === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`btn ${active ? "btn-primary" : "btn-secondary"}`}
+                      style={{ fontSize: 11.5, padding: "5px 10px" }}
+                      onClick={() => setForm((prev) => ({ ...prev, goal: key }))}
+                    >
+                      {t(`goal.${key}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>{t("roster.statusLabel")}</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {STATUS_KEYS.map((key) => {
+                  const active = form.status === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`btn ${active ? "btn-primary" : "btn-secondary"}`}
+                      style={{ fontSize: 11.5, padding: "5px 10px" }}
+                      onClick={() => setForm((prev) => ({ ...prev, status: key }))}
+                    >
+                      {t(`status.${key}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>{t("roster.weekLabel")}</label>
+              <Stepper value={form.week} min={1} onChange={(v) => setForm((prev) => ({ ...prev, week: v }))} />
+            </div>
+
+            {createError && (
+              <div style={{ fontSize: 12, color: "#a13636" }}>{createError}</div>
+            )}
+
+            <div className="dialog-actions">
+              <button className="btn btn-secondary" onClick={() => setDialogOpen(false)}>{t("builder.cancel")}</button>
+              <button className="btn btn-primary" disabled={!canCreate || isCreating} onClick={onCreate}>
+                {t("roster.create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
