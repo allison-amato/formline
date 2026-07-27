@@ -195,6 +195,32 @@ export async function updateExerciseVideo(
   return { ok: true, videoUrl: trimmed };
 }
 
+export async function updateExercise(
+  exerciseId: string,
+  input: { nameEn: string; nameEs: string; videoUrl: string }
+): Promise<
+  | { ok: true; exercise: { nameEn: string; nameEs: string; videoUrl: string | null } }
+  | { ok: false; errorCode: "missing_fields" | "invalid_url" }
+> {
+  const nameEn = input.nameEn.trim();
+  const nameEs = input.nameEs.trim();
+  if (!nameEn || !nameEs) return { ok: false, errorCode: "missing_fields" };
+
+  const rawUrl = input.videoUrl.trim();
+  let videoUrl: string | null = null;
+  if (rawUrl) {
+    if (!extractYoutubeId(rawUrl)) return { ok: false, errorCode: "invalid_url" };
+    videoUrl = rawUrl;
+  }
+
+  const exercise = await prisma.exercise.update({
+    where: { id: exerciseId },
+    data: { nameEn, nameEs, videoUrl },
+  });
+  revalidatePath("/library");
+  return { ok: true, exercise: { nameEn: exercise.nameEn, nameEs: exercise.nameEs, videoUrl: exercise.videoUrl } };
+}
+
 async function googleTranslate(
   text: string,
   target: "en" | "es"
