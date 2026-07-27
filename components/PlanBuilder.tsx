@@ -13,7 +13,7 @@ import {
   translateNote,
   updateClientStatus,
 } from "@/app/actions";
-import { DAY_LABELS, MUSCLE_LABELS, STATUS_TAGCLASS, type DraftDay } from "@/lib/constants";
+import { MUSCLE_LABELS, STATUS_TAGCLASS, type DraftDay } from "@/lib/constants";
 import { useLang, useT } from "@/lib/i18n";
 import { useUnits, kgToDisplay, displayToKg, weightStep } from "@/lib/units";
 import Stepper from "@/components/Stepper";
@@ -82,6 +82,8 @@ export default function PlanBuilder({
   const [status, setStatus] = useState(client.status);
   const [editingStatus, setEditingStatus] = useState(false);
   const [dayIndex, setDayIndex] = useState(0);
+  const [renamingDay, setRenamingDay] = useState<number | null>(null);
+  const [dayNameDraft, setDayNameDraft] = useState("");
   const [picker, setPicker] = useState<PickerState>(CLOSED_PICKER);
   const [showToast, setShowToast] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
@@ -93,13 +95,12 @@ export default function PlanBuilder({
   const libById = Object.fromEntries(library.map((e) => [e.id, e]));
   const exName = (ex: ExerciseLib) => (lang === "es" ? ex.nameEs : ex.nameEn);
   const muscleLabel = (muscle: string) => MUSCLE_LABELS[lang][muscle] ?? muscle;
-  const dayLabels = DAY_LABELS[lang];
 
   // Lazily machine-translate the current day's notes into Spanish, caching
   // the result on the row so we don't re-call the API on every render.
   useEffect(() => {
     if (lang !== "es" || !days) return;
-    days[dayIndex].forEach((row, idx) => {
+    days[dayIndex].rows.forEach((row, idx) => {
       const text = row.notes?.trim();
       if (!text) return;
       if (row.notesEs && row.notesTranslatedFrom === text) return;
@@ -110,8 +111,8 @@ export default function PlanBuilder({
       translateNote(text).then((result) => {
         setDays((prev) => {
           if (!prev) return prev;
-          const next = prev.map((d) => d.map((r) => ({ ...r })));
-          const target = next[dayIndex][idx];
+          const next = prev.map((d) => ({ ...d, rows: d.rows.map((r) => ({ ...r })) }));
+          const target = next[dayIndex].rows[idx];
           if (!target || target.notes?.trim() !== text) return prev;
           if (result.ok) {
             target.notesEs = result.translated;
@@ -126,7 +127,7 @@ export default function PlanBuilder({
 
   function onAutoSuggest() {
     startTransition(async () => {
-      const newDays = await autoSuggestDraft(client.id);
+      const newDays = await autoSuggestDraft(client.id, lang);
       setDays(newDays);
       setDayIndex(0);
     });
@@ -176,11 +177,11 @@ export default function PlanBuilder({
       .catch(() => {});
   }
 
-  function updateRow(idx: number, patch: Partial<DraftDay[number]>) {
+  function updateRow(idx: number, patch: Partial<DraftDay["rows"][number]>) {
     setDays((prev) => {
       if (!prev) return prev;
-      const next = prev.map((day) => day.map((row) => ({ ...row })));
-      next[dayIndex][idx] = { ...next[dayIndex][idx], ...patch };
+      const next = prev.map((day) => ({ ...day, rows: day.rows.map((row) => ({ ...row })) }));
+      next[dayIndex].rows[idx] = { ...next[dayIndex].rows[idx], ...patch };
       return next;
     });
   }
@@ -190,7 +191,7 @@ export default function PlanBuilder({
   }
 
   function openSwap(idx: number) {
-    const currentId = days![dayIndex][idx].exerciseId;
+    const currentId = days![dayIndex].rows[idx].exerciseId;
     const muscle = libById[currentId]?.muscle ?? "all";
     setPicker({ open: true, mode: "swap", dayIndex, rowIndex: idx, search: "", muscleFilter: muscle });
   }
@@ -198,12 +199,12 @@ export default function PlanBuilder({
   function pickExercise(ex: ExerciseLib) {
     setDays((prev) => {
       if (!prev) return prev;
-      const next = prev.map((day) => day.map((row) => ({ ...row })));
+      const next = prev.map((day) => ({ ...day, rows: day.rows.map((row) => ({ ...row })) }));
       const newItem = { exerciseId: ex.id, sets: 4, reps: ex.reps, weight: ex.baseWeight };
       if (picker.mode === "swap" && picker.rowIndex != null) {
-        next[picker.dayIndex!][picker.rowIndex] = newItem;
+        next[picker.dayIndex!].rows[picker.rowIndex] = newItem;
       } else {
-        next[picker.dayIndex!].push(newItem);
+        next[picker.dayIndex!].rows.push(newItem);
       }
       return next;
     });
@@ -224,15 +225,46 @@ export default function PlanBuilder({
   function applyCopyDay() {
     setDays((prev) => {
       if (!prev) return prev;
-      const source = prev[dayIndex].map((row) => ({ ...row }));
-      const next = prev.map((day) => day.map((row) => ({ ...row })));
+      const source = prev[dayIndex].rows.map((row) => ({ ...row }));
+      const next = prev.map((day) => ({ ...day, rows: day.rows.map((row) => ({ ...row })) }));
       copyTargets.forEach((targetIdx) => {
-        next[targetIdx] = source.map((row) => ({ ...row }));
+        next[targetIdx] = { ...next[targetIdx], rows: source.map((row) => ({ ...row })) };
       });
       return next;
     });
     setCopyOpen(false);
     setCopyTargets(new Set());
+  }
+
+  function addDay() {
+    const newIndex = days ? days.length : 0;
+    setDays((prev) => {
+      const base = prev ?? [];
+      return [...base, { label: t("builder.dayLabel", { n: base.length + 1 }), rows: [], warmupIds: [], warmupRounds: 4 }];
+    });
+    setDayIndex(newIndex);
+  }
+
+  function removeDay(i: number) {
+    if (!days || days.length <= 1) return;
+    if (!window.confirm(t("builder.removeDayConfirm", { day: days[i].label }))) return;
+    setDays((prev) => (prev ? prev.filter((_, idx) => idx !== i) : prev));
+    if (i < dayIndex) setDayIndex(dayIndex - 1);
+    else if (i === dayIndex) setDayIndex(Math.max(0, i - 1));
+  }
+
+  function startRenamingDay(i: number) {
+    setRenamingDay(i);
+    setDayNameDraft(days![i].label);
+  }
+
+  function commitDayName(i: number) {
+    const trimmed = dayNameDraft.trim();
+    setDays((prev) => {
+      if (!prev) return prev;
+      return prev.map((d, idx) => (idx === i && trimmed ? { ...d, label: trimmed } : d));
+    });
+    setRenamingDay(null);
   }
 
   const goalLabel = t(`goal.${client.goal}`);
@@ -333,34 +365,74 @@ export default function PlanBuilder({
 
       {days ? (
         <>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: "var(--space-4)" }}>
-            <div className="seg" style={{ maxWidth: 420 }}>
-              {dayLabels.map((label, i) => (
-                <label key={label} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                  <input type="radio" name="builderday" checked={dayIndex === i} onChange={() => setDayIndex(i)} />
-                  {label}
-                </label>
-              ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: "var(--space-4)", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+              {days.map((day, i) => {
+                const active = dayIndex === i;
+                if (active && renamingDay === i) {
+                  return (
+                    <input
+                      key={i}
+                      className="input"
+                      autoFocus
+                      style={{ fontSize: 12.5, padding: "5px 9px", width: 130 }}
+                      value={dayNameDraft}
+                      onChange={(e) => setDayNameDraft(e.target.value)}
+                      onBlur={() => commitDayName(i)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitDayName(i);
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <button
+                      type="button"
+                      className={`btn ${active ? "btn-primary" : "btn-secondary"}`}
+                      style={{ fontSize: 12.5 }}
+                      title={active ? t("builder.renameDayHint") : undefined}
+                      onClick={() => (active ? startRenamingDay(i) : setDayIndex(i))}
+                    >
+                      {day.label}
+                    </button>
+                    {days.length > 1 && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ fontSize: 13, padding: "0 6px" }}
+                        title={t("builder.removeDay")}
+                        onClick={() => removeDay(i)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={addDay}>
+                {t("builder.addDay")}
+              </button>
             </div>
             <button className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => setCopyOpen((v) => !v)}>
-              {t("builder.copyDayTo", { day: dayLabels[dayIndex] })}
+              {t("builder.copyDayTo", { day: days[dayIndex].label })}
             </button>
           </div>
 
           {copyOpen && (
             <div className="card" style={{ marginTop: "var(--space-2)", maxWidth: 420 }}>
-              <div className="text-muted" style={{ fontSize: 12 }}>{t("builder.applyExercisesTo", { day: dayLabels[dayIndex] })}</div>
+              <div className="text-muted" style={{ fontSize: 12 }}>{t("builder.applyExercisesTo", { day: days[dayIndex].label })}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-                {dayLabels.map((label, i) =>
+                {days.map((day, i) =>
                   i === dayIndex ? null : (
-                    <label key={label} className="radio" style={{ fontSize: 13 }}>
+                    <label key={i} className="radio" style={{ fontSize: 13 }}>
                       <input
                         type="checkbox"
                         checked={copyTargets.has(i)}
                         onChange={() => toggleCopyTarget(i)}
                         style={{ position: "static", opacity: 1, width: "auto", height: "auto", pointerEvents: "auto" }}
                       />
-                      {label}
+                      {day.label}
                     </label>
                   )
                 )}
@@ -390,7 +462,7 @@ export default function PlanBuilder({
                 </tr>
               </thead>
               <tbody>
-                {days[dayIndex].map((row, idx) => {
+                {days[dayIndex].rows.map((row, idx) => {
                   const lib = libById[row.exerciseId];
                   const preferred = client.likedIds.includes(row.exerciseId);
                   const weightDisabled = row.weight == null;
