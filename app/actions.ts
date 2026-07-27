@@ -9,11 +9,21 @@ import { extractYoutubeId } from "@/lib/youtube";
 const STATUS_KEYS = Object.keys(STATUS_TAGCLASS);
 const GOAL_KEYS = Object.keys(GOAL_SCHEME);
 
-export async function saveGoal(clientId: string, goal: string, target: string) {
-  await prisma.client.update({ where: { id: clientId }, data: { goal, target } });
+export async function updateClientDetails(
+  clientId: string,
+  input: { name: string; goal: string; target: string }
+): Promise<{ ok: true } | { ok: false; errorCode: "missing_name" }> {
+  const name = input.name.trim();
+  if (!name) return { ok: false, errorCode: "missing_name" };
+
+  await prisma.client.update({
+    where: { id: clientId },
+    data: { name, goal: input.goal, target: input.target },
+  });
   revalidatePath(`/clients/${clientId}`);
   revalidatePath(`/clients/${clientId}/goal`);
   revalidatePath("/clients");
+  return { ok: true };
 }
 
 export async function createClient(input: {
