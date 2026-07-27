@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { saveGoal } from "@/app/actions";
+import { updateClientDetails } from "@/app/actions";
 import { useT } from "@/lib/i18n";
 
 const GOAL_KEYS = ["general", "muscle", "loss", "pain"];
@@ -19,16 +19,23 @@ export default function GoalForm({
   initialTarget: string;
 }) {
   const t = useT();
+  const [name, setName] = useState(clientName);
   const [goal, setGoal] = useState(initialGoal);
   const [target, setTarget] = useState(initialTarget);
   const [showToast, setShowToast] = useState(false);
+  const [error, setError] = useState<string | undefined>();
   const [isPending, startTransition] = useTransition();
 
   function onSave() {
+    setError(undefined);
     startTransition(async () => {
-      await saveGoal(clientId, goal, target);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2200);
+      const result = await updateClientDetails(clientId, { name, goal, target });
+      if (result.ok) {
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2200);
+      } else {
+        setError(t("goal.errorMissingName"));
+      }
     });
   }
 
@@ -37,6 +44,16 @@ export default function GoalForm({
       <Link href="/clients" className="btn btn-ghost">{t("builder.back")}</Link>
       <h2 style={{ marginTop: "var(--space-2)" }}>{t("goal.heading", { name: clientName })}</h2>
       <div className="text-muted" style={{ fontSize: 13 }}>{t("goal.subheading")}</div>
+
+      <div className="field" style={{ marginTop: "var(--space-6)" }}>
+        <label>{t("goal.nameLabel")}</label>
+        <input
+          className="input"
+          placeholder={t("roster.namePlaceholder")}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
 
       <h6 style={{ marginTop: "var(--space-6)" }}>{t("goal.primaryGoal")}</h6>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
@@ -59,6 +76,9 @@ export default function GoalForm({
         />
       </div>
 
+      {error && (
+        <div style={{ fontSize: 12, color: "#a13636", marginBottom: 8 }}>{error}</div>
+      )}
       <button className="btn btn-primary" disabled={isPending} onClick={onSave}>
         {t("goal.save")}
       </button>
