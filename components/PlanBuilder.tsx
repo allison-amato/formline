@@ -11,6 +11,7 @@ import {
   incrementExerciseUse,
   recordPlanSent,
   translateNote,
+  updateClientStatus,
 } from "@/app/actions";
 import { DAY_LABELS, MUSCLE_LABELS, STATUS_TAGCLASS, type DraftDay } from "@/lib/constants";
 import { useLang, useT } from "@/lib/i18n";
@@ -76,6 +77,8 @@ export default function PlanBuilder({
   const t = useT();
   const [days, setDays] = useState<DraftDay[] | null>(initialDraft);
   const [planSentAt, setPlanSentAt] = useState<Date | null>(client.planSentAt);
+  const [status, setStatus] = useState(client.status);
+  const [editingStatus, setEditingStatus] = useState(false);
   const [dayIndex, setDayIndex] = useState(0);
   const [picker, setPicker] = useState<PickerState>(CLOSED_PICKER);
   const [showToast, setShowToast] = useState(false);
@@ -139,7 +142,8 @@ export default function PlanBuilder({
 
   function onAdvanceWeek() {
     startTransition(async () => {
-      await advanceWeek(client.id);
+      const result = await advanceWeek(client.id);
+      setStatus(result.status);
       router.refresh();
     });
   }
@@ -147,9 +151,18 @@ export default function PlanBuilder({
   function onSavePlan() {
     if (!days) return;
     startTransition(async () => {
-      await savePlan(client.id, days);
+      const result = await savePlan(client.id, days);
+      setStatus(result.status);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 2200);
+    });
+  }
+
+  function onSetStatus(next: string) {
+    startTransition(async () => {
+      const result = await updateClientStatus(client.id, next);
+      if (result.ok) setStatus(result.status);
+      setEditingStatus(false);
     });
   }
 
@@ -221,8 +234,9 @@ export default function PlanBuilder({
   }
 
   const goalLabel = t(`goal.${client.goal}`);
-  const statusLabel = t(`status.${client.status}`);
-  const statusTagClass = STATUS_TAGCLASS[client.status] ?? "tag-neutral";
+  const statusLabel = t(`status.${status}`);
+  const statusTagClass = STATUS_TAGCLASS[status] ?? "tag-neutral";
+  const statusKeys = Object.keys(STATUS_TAGCLASS);
   const likedChips = client.likedIds.map((id) => (libById[id] ? exName(libById[id]) : null)).filter(Boolean);
 
   const matchesFilter = (e: ExerciseLib) =>
@@ -256,7 +270,32 @@ export default function PlanBuilder({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "var(--space-2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <h3 style={{ margin: 0 }}>{client.name}</h3>
-          <div className={`tag ${statusTagClass}`}>{statusLabel}</div>
+          {editingStatus ? (
+            <div style={{ display: "flex", gap: 4 }}>
+              {statusKeys.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`btn ${status === key ? "btn-primary" : "btn-secondary"}`}
+                  style={{ fontSize: 11, padding: "3px 9px" }}
+                  disabled={isPending}
+                  onClick={() => onSetStatus(key)}
+                >
+                  {t(`status.${key}`)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={`tag ${statusTagClass}`}
+              style={{ cursor: "pointer", border: "none" }}
+              title={t("builder.changeStatus")}
+              onClick={() => setEditingStatus(true)}
+            >
+              {statusLabel}
+            </button>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {days && (
