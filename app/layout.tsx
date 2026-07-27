@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
+import { UnitsProvider } from "@/lib/units";
 
 const fontBody = Barlow({
   variable: "--font-body",
@@ -28,7 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${fontBody.variable} ${fontHeading.variable}`}>
       <body>
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          <UnitsProvider>{children}</UnitsProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

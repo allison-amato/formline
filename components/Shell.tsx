@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useLang, useT } from "@/lib/i18n";
+import { useUnits } from "@/lib/units";
 
 export default function Shell({
   children,
@@ -11,6 +12,7 @@ export default function Shell({
   active?: "clients" | "library";
 }) {
   const { lang, setLang } = useLang();
+  const { unit, setUnit } = useUnits();
   const t = useT();
 
   return (
@@ -22,6 +24,16 @@ export default function Shell({
           </div>
           <div className="text-muted" style={{ fontSize: 13, flex: 1 }}>
             {t("nav.subtitle")}
+          </div>
+          <div className="seg" style={{ flex: "none" }}>
+            <label className="seg-opt">
+              <input type="radio" name="appunit" checked={unit === "lb"} onChange={() => setUnit("lb")} />
+              LB
+            </label>
+            <label className="seg-opt">
+              <input type="radio" name="appunit" checked={unit === "kg"} onChange={() => setUnit("kg")} />
+              KG
+            </label>
           </div>
           <div className="seg" style={{ flex: "none" }}>
             <label className="seg-opt">

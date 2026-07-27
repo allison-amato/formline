@@ -69,6 +69,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     "builder.allExercises": "All exercises",
     "builder.weightUnitBW": "BW",
     "builder.weightUnitKg": "kg",
+    "builder.weightUnitLb": "lb",
 
     "goal.heading": "{name}'s details",
     "goal.subheading": "Edit their name and the goal that shapes their plan.",
@@ -187,6 +188,7 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     "builder.allExercises": "Todos los ejercicios",
     "builder.weightUnitBW": "PC",
     "builder.weightUnitKg": "kg",
+    "builder.weightUnitLb": "lb",
 
     "goal.heading": "Detalles de {name}",
     "goal.subheading": "Edita su nombre y el objetivo que da forma a su plan.",

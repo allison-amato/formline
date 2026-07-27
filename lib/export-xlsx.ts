@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { DAY_LABELS, type DraftDay } from "@/lib/constants";
 import { t, type Lang } from "@/lib/i18n";
+import { kgToDisplay, type WeightUnit } from "@/lib/units";
 
 type ExerciseLib = {
   id: string;
@@ -40,7 +41,8 @@ export async function exportPlanToXlsx(
   currentDays: DraftDay[],
   libById: Record<string, ExerciseLib>,
   lang: Lang,
-  allWeeks: Record<number, DraftDay[]>
+  allWeeks: Record<number, DraftDay[]>,
+  unit: WeightUnit
 ) {
   const dayLabels = DAY_LABELS[lang];
   const weeksData: Record<number, DraftDay[]> = { ...allWeeks, [client.week]: currentDays };
@@ -94,7 +96,7 @@ export async function exportPlanToXlsx(
   headerCell(2, "EJERCICIOS");
   headerCell(3, "EXERCISE");
   WEEKS.forEach((week) => {
-    headerCell(weekCol(week, 0), "P");
+    headerCell(weekCol(week, 0), `P (${unit.toUpperCase()})`);
     headerCell(weekCol(week, 1), "R");
     headerCell(weekCol(week, 2), "S");
   });
@@ -136,7 +138,7 @@ export async function exportPlanToXlsx(
         const rCell = ws.getCell(row, weekCol(week, 1));
         const sCell = ws.getCell(row, weekCol(week, 2));
         if (weekRow) {
-          pCell.value = weekRow.weight == null ? t(lang, "builder.weightUnitBW") : weekRow.weight;
+          pCell.value = weekRow.weight == null ? t(lang, "builder.weightUnitBW") : kgToDisplay(weekRow.weight, unit);
           rCell.value = weekRow.reps;
           sCell.value = weekRow.sets;
         }
