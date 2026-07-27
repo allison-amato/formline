@@ -108,24 +108,52 @@ export async function duplicatePreviousWeek(clientId: string): Promise<DraftDay[
   return JSON.parse(previous.days);
 }
 
-export async function advanceWeek(clientId: string): Promise<number> {
+export async function advanceWeek(clientId: string): Promise<{ week: number; status: string }> {
+  const current = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
+  // Advancing to a new week is a deliberate "we're moving forward" checkpoint,
+  // so it's the natural moment to clear a needs-attention flag (unlike
+  // plan-due, needs-attention is usually judgment-based, e.g. pain or slow
+  // progress, so it shouldn't auto-clear on something as passive as a save).
+  const status = current.status === "needs-attention" ? "on-track" : current.status;
+
   const client = await prisma.client.update({
     where: { id: clientId },
-    data: { week: { increment: 1 } },
+    data: { week: { increment: 1 }, status },
   });
   revalidatePath(`/clients/${clientId}`);
   revalidatePath("/clients");
-  return client.week;
+  return { week: client.week, status: client.status };
 }
 
-export async function savePlan(clientId: string, days: DraftDay[]) {
+export async function savePlan(clientId: string, days: DraftDay[]): Promise<{ status: string }> {
   const client = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
   await prisma.planWeek.upsert({
     where: { clientId_week: { clientId, week: client.week } },
     create: { clientId, week: client.week, days: JSON.stringify(days) },
     update: { days: JSON.stringify(days) },
   });
+
+  const status = client.status === "plan-due" ? "on-track" : client.status;
+  if (status !== client.status) {
+    await prisma.client.update({ where: { id: clientId }, data: { status } });
+  }
+
   revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients");
+  return { status };
+}
+
+export async function updateClientStatus(
+  clientId: string,
+  status: string
+): Promise<{ ok: true; status: string } | { ok: false; errorCode: "invalid_status" }> {
+  if (!STATUS_KEYS.includes(status)) {
+    return { ok: false, errorCode: "invalid_status" };
+  }
+  const client = await prisma.client.update({ where: { id: clientId }, data: { status } });
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/clients");
+  return { ok: true, status: client.status };
 }
 
 export async function incrementExerciseUse(exerciseId: string) {
