@@ -107,7 +107,7 @@ export async function exportPlanToXlsx(
   currentDays.forEach((day, dayIdx) => {
     const startRow = row;
 
-    day.rows.forEach((currentRow) => {
+    day.rows.forEach((currentRow, rowIdx) => {
       const ex = libById[currentRow.exerciseId];
       const dayCell = ws.getCell(row, 1);
       dayCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ORANGE } };
@@ -147,6 +147,21 @@ export async function exportPlanToXlsx(
       const notesCell = ws.getCell(row, notesCol);
       notesCell.value = currentRow.notes ?? "";
       notesCell.alignment = { horizontal: "left", wrapText: true };
+
+      // Warm-up moves are just listed down the day's row range (one per
+      // row), not tied to the specific lift on that row — there's nowhere
+      // else in this layout to put a short separate list.
+      const warmupId = day.warmupIds[rowIdx];
+      if (warmupId) {
+        const warmupEx = libById[warmupId];
+        const prefix = rowIdx === 0 ? `(x${day.warmupRounds}) ` : "";
+        const warmupEsCell = ws.getCell(row, lastCol - 1);
+        const warmupEnCell = ws.getCell(row, lastCol);
+        warmupEsCell.value = prefix + (warmupEx?.nameEs ?? warmupId);
+        warmupEnCell.value = prefix + (warmupEx?.nameEn ?? "");
+        warmupEsCell.alignment = { horizontal: "left", wrapText: true };
+        warmupEnCell.alignment = { horizontal: "left", wrapText: true };
+      }
 
       row++;
     });

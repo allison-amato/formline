@@ -51,7 +51,7 @@ function formatDate(d: Date) {
 
 type PickerState = {
   open: boolean;
-  mode: "add" | "swap" | null;
+  mode: "add" | "swap" | "warmup" | null;
   dayIndex: number | null;
   rowIndex: number | null;
   search: string;
@@ -196,10 +196,21 @@ export default function PlanBuilder({
     setPicker({ open: true, mode: "swap", dayIndex, rowIndex: idx, search: "", muscleFilter: muscle });
   }
 
+  function openAddWarmup() {
+    setPicker({ open: true, mode: "warmup", dayIndex, rowIndex: null, search: "", muscleFilter: "warmup" });
+  }
+
   function pickExercise(ex: ExerciseLib) {
     setDays((prev) => {
       if (!prev) return prev;
       const next = prev.map((day) => ({ ...day, rows: day.rows.map((row) => ({ ...row })) }));
+      if (picker.mode === "warmup") {
+        const target = next[picker.dayIndex!];
+        if (!target.warmupIds.includes(ex.id)) {
+          target.warmupIds = [...target.warmupIds, ex.id];
+        }
+        return next;
+      }
       const newItem = { exerciseId: ex.id, sets: 4, reps: ex.reps, weight: ex.baseWeight };
       if (picker.mode === "swap" && picker.rowIndex != null) {
         next[picker.dayIndex!].rows[picker.rowIndex] = newItem;
@@ -211,6 +222,24 @@ export default function PlanBuilder({
     setPicker(CLOSED_PICKER);
     setLibrary((prev) => prev.map((e) => (e.id === ex.id ? { ...e, useCount: e.useCount + 1 } : e)));
     incrementExerciseUse(ex.id).catch(() => {});
+  }
+
+  function removeWarmupItem(exerciseId: string) {
+    setDays((prev) => {
+      if (!prev) return prev;
+      const next = prev.map((day) => ({ ...day, rows: day.rows.map((row) => ({ ...row })) }));
+      next[dayIndex].warmupIds = next[dayIndex].warmupIds.filter((id) => id !== exerciseId);
+      return next;
+    });
+  }
+
+  function setWarmupRounds(rounds: number) {
+    setDays((prev) => {
+      if (!prev) return prev;
+      const next = prev.map((day) => ({ ...day, rows: day.rows.map((row) => ({ ...row })) }));
+      next[dayIndex].warmupRounds = Math.max(1, rounds);
+      return next;
+    });
   }
 
   function toggleCopyTarget(idx: number) {
@@ -448,6 +477,37 @@ export default function PlanBuilder({
             </div>
           )}
 
+          <div className="card" style={{ marginTop: "var(--space-3)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <h6 style={{ margin: 0 }}>{t("builder.warmup")}</h6>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="text-muted" style={{ fontSize: 12 }}>{t("builder.warmupRounds")}</span>
+                <Stepper value={days[dayIndex].warmupRounds} min={1} onChange={setWarmupRounds} />
+              </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: "var(--space-2)" }}>
+              {days[dayIndex].warmupIds.map((id) => {
+                const ex = libById[id];
+                return (
+                  <div key={id} className="tag tag-neutral" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {ex ? exName(ex) : id}
+                    <button
+                      type="button"
+                      onClick={() => removeWarmupItem(id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 13, lineHeight: 1, color: "inherit" }}
+                      title={t("builder.removeWarmupItem")}
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+              <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={openAddWarmup}>
+                {t("builder.addWarmup")}
+              </button>
+            </div>
+          </div>
+
           <div className="card" style={{ marginTop: "var(--space-3)", overflowX: "auto", padding: 0 }}>
             <table style={{ width: "100%", minWidth: 720, borderCollapse: "collapse" }}>
               <thead>
@@ -560,7 +620,13 @@ export default function PlanBuilder({
       {picker.open && (
         <div className="dialog-backdrop" style={{ position: "fixed", inset: 0, padding: "var(--space-6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div className="dialog" style={{ width: 520, maxHeight: "74vh" }}>
-            <div className="dialog-title">{picker.mode === "swap" ? t("builder.swapExerciseTitle") : t("builder.addExerciseTitle")}</div>
+            <div className="dialog-title">
+              {picker.mode === "swap"
+                ? t("builder.swapExerciseTitle")
+                : picker.mode === "warmup"
+                ? t("builder.addWarmupTitle")
+                : t("builder.addExerciseTitle")}
+            </div>
             <input
               className="input"
               placeholder={t("builder.searchExercises")}
