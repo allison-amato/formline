@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { createExercise, translateNote, updateExerciseVideo } from "@/app/actions";
+import { createExercise, translateNote, updateExercise, updateExerciseVideo } from "@/app/actions";
 import { extractYoutubeId } from "@/lib/youtube";
 import { MUSCLE_KEYS, MUSCLE_LABELS } from "@/lib/constants";
 import { useLang, useT } from "@/lib/i18n";
@@ -31,6 +31,11 @@ export default function ExerciseLibraryEditor({ exercises: initialExercises }: {
   const [form, setForm] = useState(EMPTY_FORM);
   const [createError, setCreateError] = useState<string | undefined>();
   const [isCreating, startCreating] = useTransition();
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ nameEn: "", nameEs: "", videoUrl: "" });
+  const [editError, setEditError] = useState<string | undefined>();
+  const [isEditing, startEditing] = useTransition();
 
   // Exercises created while the translate API was unavailable are saved
   // with nameEs === nameEn as a fallback. Lazily machine-translate those to
@@ -93,6 +98,37 @@ export default function ExerciseLibraryEditor({ exercises: initialExercises }: {
 
   const canCreate = form.name.trim() !== "" && form.muscle !== "";
 
+  function openEdit(ex: Exercise) {
+    setEditingId(ex.id);
+    setEditForm({ nameEn: ex.nameEn, nameEs: ex.nameEs, videoUrl: values[ex.id] ?? ex.videoUrl ?? "" });
+    setEditError(undefined);
+  }
+
+  function onSaveEdit() {
+    if (!editingId) return;
+    const id = editingId;
+    setEditError(undefined);
+    startEditing(async () => {
+      const result = await updateExercise(id, editForm);
+      if (result.ok) {
+        setExercises((prev) => prev.map((e) => (e.id === id ? { ...e, ...result.exercise } : e)));
+        setValues((prev) => ({ ...prev, [id]: result.exercise.videoUrl ?? "" }));
+        setEsOverrides((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        setEditingId(null);
+      } else if (result.errorCode === "invalid_url") {
+        setEditError(t("library.errorInvalidUrl"));
+      } else {
+        setEditError(t("library.errorMissingFields"));
+      }
+    });
+  }
+
+  const canSaveEdit = editForm.nameEn.trim() !== "" && editForm.nameEs.trim() !== "";
+
   return (
     <>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-4)" }}>
@@ -135,7 +171,12 @@ export default function ExerciseLibraryEditor({ exercises: initialExercises }: {
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{lang === "es" ? (esOverrides[ex.id] ?? ex.nameEs) : ex.nameEn}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{lang === "es" ? (esOverrides[ex.id] ?? ex.nameEs) : ex.nameEn}</div>
+                    <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: "1px 6px" }} onClick={() => openEdit(ex)}>
+                      {t("library.edit")}
+                    </button>
+                  </div>
                   <div className="text-muted" style={{ fontSize: 11.5, marginBottom: 6 }}>{MUSCLE_LABELS[lang][ex.muscle] ?? ex.muscle}</div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <input
@@ -218,6 +259,53 @@ export default function ExerciseLibraryEditor({ exercises: initialExercises }: {
               <button className="btn btn-secondary" onClick={() => setDialogOpen(false)}>{t("builder.cancel")}</button>
               <button className="btn btn-primary" disabled={!canCreate || isCreating} onClick={onCreate}>
                 {t("library.create")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingId && (
+        <div className="dialog-backdrop" style={{ position: "fixed", inset: 0, padding: "var(--space-6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="dialog" style={{ width: 480 }}>
+            <div className="dialog-title">{t("library.editExerciseTitle")}</div>
+
+            <div className="field">
+              <label>{t("library.nameEnLabel")}</label>
+              <input
+                className="input"
+                value={editForm.nameEn}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, nameEn: e.target.value }))}
+              />
+            </div>
+
+            <div className="field">
+              <label>{t("library.nameEsLabel")}</label>
+              <input
+                className="input"
+                value={editForm.nameEs}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, nameEs: e.target.value }))}
+              />
+            </div>
+
+            <div className="field">
+              <label>{t("library.videoLabelOptional")}</label>
+              <input
+                className="input"
+                placeholder={t("library.urlPlaceholder")}
+                value={editForm.videoUrl}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, videoUrl: e.target.value }))}
+              />
+            </div>
+
+            {editError && (
+              <div style={{ fontSize: 12, color: "#a13636" }}>{editError}</div>
+            )}
+
+            <div className="dialog-actions">
+              <button className="btn btn-secondary" onClick={() => setEditingId(null)}>{t("builder.cancel")}</button>
+              <button className="btn btn-primary" disabled={!canSaveEdit || isEditing} onClick={onSaveEdit}>
+                {t("library.saveChanges")}
               </button>
             </div>
           </div>

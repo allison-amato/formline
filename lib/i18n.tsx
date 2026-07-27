@@ -94,6 +94,11 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     "library.muscleLabel": "Muscle group",
     "library.videoLabelOptional": "Video link (optional)",
     "library.create": "Add to library",
+    "library.edit": "Edit",
+    "library.editExerciseTitle": "Edit exercise",
+    "library.nameEnLabel": "Name (English)",
+    "library.nameEsLabel": "Name (Spanish)",
+    "library.saveChanges": "Save changes",
     "library.errorMissingFields": "Enter a name and pick a muscle group.",
 
     "export.name": "NAME",
@@ -208,6 +213,11 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     "library.muscleLabel": "Grupo muscular",
     "library.videoLabelOptional": "Enlace de video (opcional)",
     "library.create": "Agregar a la biblioteca",
+    "library.edit": "Editar",
+    "library.editExerciseTitle": "Editar ejercicio",
+    "library.nameEnLabel": "Nombre (inglés)",
+    "library.nameEsLabel": "Nombre (español)",
+    "library.saveChanges": "Guardar cambios",
     "library.errorMissingFields": "Ingresa un nombre y elige un grupo muscular.",
 
     "export.name": "NOMBRE",
