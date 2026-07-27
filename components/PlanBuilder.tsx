@@ -15,6 +15,7 @@ import {
 } from "@/app/actions";
 import { DAY_LABELS, MUSCLE_LABELS, STATUS_TAGCLASS, type DraftDay } from "@/lib/constants";
 import { useLang, useT } from "@/lib/i18n";
+import { useUnits, kgToDisplay, displayToKg, weightStep } from "@/lib/units";
 import Stepper from "@/components/Stepper";
 import { exportPlanToXlsx } from "@/lib/export-xlsx";
 
@@ -74,6 +75,7 @@ export default function PlanBuilder({
 }) {
   const router = useRouter();
   const { lang } = useLang();
+  const { unit } = useUnits();
   const t = useT();
   const [days, setDays] = useState<DraftDay[] | null>(initialDraft);
   const [planSentAt, setPlanSentAt] = useState<Date | null>(client.planSentAt);
@@ -168,7 +170,7 @@ export default function PlanBuilder({
 
   function onExport() {
     if (!days) return;
-    exportPlanToXlsx(client, days, libById, lang, allWeeks).catch(() => {});
+    exportPlanToXlsx(client, days, libById, lang, allWeeks, unit).catch(() => {});
     recordPlanSent(client.id)
       .then((result) => setPlanSentAt(result.planSentAt))
       .catch(() => {});
@@ -414,10 +416,11 @@ export default function PlanBuilder({
                       </td>
                       <td style={{ padding: "8px 4px" }}>
                         <Stepper
-                          value={row.weight}
-                          onChange={(v) => updateRow(idx, { weight: v })}
+                          value={row.weight == null ? null : kgToDisplay(row.weight, unit)}
+                          onChange={(v) => updateRow(idx, { weight: displayToKg(v, unit) })}
+                          step={weightStep(unit)}
                           disabled={weightDisabled}
-                          placeholder={weightDisabled ? t("builder.weightUnitBW") : t("builder.weightUnitKg")}
+                          placeholder={weightDisabled ? t("builder.weightUnitBW") : unit === "lb" ? t("builder.weightUnitLb") : t("builder.weightUnitKg")}
                         />
                       </td>
                       <td style={{ padding: "8px 4px" }}>
@@ -493,7 +496,7 @@ export default function PlanBuilder({
               onChange={(e) => setPicker((p) => ({ ...p, search: e.target.value }))}
             />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {[{ key: "all", label: t("builder.muscleAll") }, ...muscleKeys.map((k) => ({ key: k, label: MUSCLE_LABELS[lang][k].split(" ")[0].replace("·", "") }))].map((m) => {
+              {[{ key: "all", label: t("builder.muscleAll") }, ...muscleKeys.map((k) => ({ key: k, label: MUSCLE_LABELS[lang][k] }))].map((m) => {
                 const active = picker.muscleFilter === m.key;
                 return (
                   <button
