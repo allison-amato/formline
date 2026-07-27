@@ -16,7 +16,7 @@ const fontHeading = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "GuardaForma",
+  title: "GuardaFit",
   description: "Trainer console for building and tracking client plans",
 };
 
