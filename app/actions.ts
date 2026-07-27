@@ -3,8 +3,9 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { GOAL_SCHEME, DAY_TEMPLATES, MUSCLE_KEYS, MUSCLE_LABELS, STATUS_TAGCLASS, weekMultFor, type DraftDay } from "@/lib/constants";
+import { GOAL_SCHEME, DAY_TEMPLATES, MUSCLE_KEYS, MUSCLE_LABELS, STATUS_TAGCLASS, normalizeDraftDays, weekMultFor, type DraftDay } from "@/lib/constants";
 import { extractYoutubeId } from "@/lib/youtube";
+import { t, type Lang } from "@/lib/i18n-strings";
 
 const STATUS_KEYS = Object.keys(STATUS_TAGCLASS);
 const GOAL_KEYS = Object.keys(GOAL_SCHEME);
@@ -72,15 +73,16 @@ export async function recordPlanSent(clientId: string): Promise<{ ok: true; plan
   return { ok: true, planSentAt };
 }
 
-export async function autoSuggestDraft(clientId: string): Promise<DraftDay[]> {
+export async function autoSuggestDraft(clientId: string, lang: Lang): Promise<DraftDay[]> {
   const client = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
   const scheme = GOAL_SCHEME[client.goal] ?? GOAL_SCHEME.general;
   const weekMult = weekMultFor(client.week);
   const exercises = await prisma.exercise.findMany();
   const byId = Object.fromEntries(exercises.map((e) => [e.id, e]));
 
-  const days: DraftDay[] = DAY_TEMPLATES.map((ids) =>
-    ids.map((id) => {
+  const days: DraftDay[] = DAY_TEMPLATES.map((ids, i) => ({
+    label: t(lang, "builder.dayLabel", { n: i + 1 }),
+    rows: ids.map((id) => {
       const ex = byId[id];
       return {
         exerciseId: id,
@@ -88,8 +90,10 @@ export async function autoSuggestDraft(clientId: string): Promise<DraftDay[]> {
         reps: scheme.reps,
         weight: ex.baseWeight == null ? null : Math.round(ex.baseWeight * scheme.mult * weekMult),
       };
-    })
-  );
+    }),
+    warmupIds: [],
+    warmupRounds: 4,
+  }));
 
   await prisma.planWeek.upsert({
     where: { clientId_week: { clientId, week: client.week } },
@@ -115,7 +119,7 @@ export async function duplicatePreviousWeek(clientId: string): Promise<DraftDay[
   });
 
   revalidatePath(`/clients/${clientId}`);
-  return JSON.parse(previous.days);
+  return normalizeDraftDays(JSON.parse(previous.days));
 }
 
 export async function advanceWeek(clientId: string): Promise<{ week: number; status: string }> {
