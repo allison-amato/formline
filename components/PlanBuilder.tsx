@@ -514,9 +514,9 @@ export default function PlanBuilder({
                 <tr style={{ borderBottom: "1px solid var(--color-divider)", textAlign: "left" }}>
                   <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)" }}>{t("builder.colExercise")}</th>
                   <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)" }}>{t("builder.colMuscle")}</th>
-                  <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)", width: 82 }}>{t("builder.colSets")}</th>
-                  <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)", width: 82 }}>{t("builder.colReps")}</th>
-                  <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)", width: 96 }}>{t("builder.colWeight")}</th>
+                  <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)", width: 92 }}>{t("builder.colSets")}</th>
+                  <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)", width: 92 }}>{t("builder.colReps")}</th>
+                  <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)", width: 108 }}>{t("builder.colWeight")}</th>
                   <th style={{ padding: "8px 10px", fontSize: 11.5, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--color-neutral-600)", width: 170 }}>{t("builder.colNotes")}</th>
                   <th style={{ padding: "8px 10px", width: 70 }}></th>
                 </tr>
