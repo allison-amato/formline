@@ -19,9 +19,8 @@ export default function Shell({
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", padding: "28px 32px 80px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28 }}>
-          <div className="nav-brand" style={{ fontSize: 20 }}>
-            GuardaFit
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="GuardaFit" style={{ height: 40, flex: "none" }} />
           <div className="text-muted" style={{ fontSize: 13, flex: 1 }}>
             {t("nav.subtitle")}
           </div>
