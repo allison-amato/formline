@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { DAY_LABELS, type DraftDay } from "@/lib/constants";
+import type { DraftDay } from "@/lib/constants";
 import { t, type Lang } from "@/lib/i18n";
 import { kgToDisplay, type WeightUnit } from "@/lib/units";
 
@@ -44,7 +44,6 @@ export async function exportPlanToXlsx(
   allWeeks: Record<number, DraftDay[]>,
   unit: WeightUnit
 ) {
-  const dayLabels = DAY_LABELS[lang];
   const weeksData: Record<number, DraftDay[]> = { ...allWeeks, [client.week]: currentDays };
   const lastCol = weekCol(WEEKS[WEEKS.length - 1], 2) + 2; // last week's S column, + warm-up ES/EN
   const notesCol = lastCol + 1;
@@ -108,7 +107,7 @@ export async function exportPlanToXlsx(
   currentDays.forEach((day, dayIdx) => {
     const startRow = row;
 
-    day.forEach((currentRow) => {
+    day.rows.forEach((currentRow, rowIdx) => {
       const ex = libById[currentRow.exerciseId];
       const dayCell = ws.getCell(row, 1);
       dayCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ORANGE } };
@@ -133,7 +132,7 @@ export async function exportPlanToXlsx(
 
       WEEKS.forEach((week) => {
         const weekDay = weeksData[week]?.[dayIdx];
-        const weekRow = weekDay?.find((r) => r.exerciseId === currentRow.exerciseId);
+        const weekRow = weekDay?.rows.find((r) => r.exerciseId === currentRow.exerciseId);
         const pCell = ws.getCell(row, weekCol(week, 0));
         const rCell = ws.getCell(row, weekCol(week, 1));
         const sCell = ws.getCell(row, weekCol(week, 2));
@@ -149,13 +148,28 @@ export async function exportPlanToXlsx(
       notesCell.value = currentRow.notes ?? "";
       notesCell.alignment = { horizontal: "left", wrapText: true };
 
+      // Warm-up moves are just listed down the day's row range (one per
+      // row), not tied to the specific lift on that row — there's nowhere
+      // else in this layout to put a short separate list.
+      const warmupId = day.warmupIds[rowIdx];
+      if (warmupId) {
+        const warmupEx = libById[warmupId];
+        const prefix = rowIdx === 0 ? `(x${day.warmupRounds}) ` : "";
+        const warmupEsCell = ws.getCell(row, lastCol - 1);
+        const warmupEnCell = ws.getCell(row, lastCol);
+        warmupEsCell.value = prefix + (warmupEx?.nameEs ?? warmupId);
+        warmupEnCell.value = prefix + (warmupEx?.nameEn ?? "");
+        warmupEsCell.alignment = { horizontal: "left", wrapText: true };
+        warmupEnCell.alignment = { horizontal: "left", wrapText: true };
+      }
+
       row++;
     });
 
     if (row - 1 >= startRow) {
       ws.mergeCells(startRow, 1, row - 1, 1);
       const dayCell = ws.getCell(startRow, 1);
-      dayCell.value = dayLabels[dayIdx]?.replace(/\D/g, "") || String(dayIdx + 1);
+      dayCell.value = String(dayIdx + 1);
     }
 
     row++; // blank separator row between days

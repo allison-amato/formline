@@ -63,11 +63,6 @@ export const DAY_TEMPLATES: string[][] = [
   ["e13", "e14", "e15", "e16", "e17", "e18"],
 ];
 
-export const DAY_LABELS: Record<Lang, string[]> = {
-  en: ["Day 1", "Day 2", "Day 3"],
-  es: ["Día 1", "Día 2", "Día 3"],
-};
-
 export type DraftRow = {
   exerciseId: string;
   sets: number;
@@ -79,4 +74,29 @@ export type DraftRow = {
   notesEs?: string;
   notesTranslatedFrom?: string;
 };
-export type DraftDay = DraftRow[];
+
+export type DraftDay = {
+  label: string;
+  rows: DraftRow[];
+  warmupIds: string[];
+  warmupRounds: number;
+};
+
+// Plans saved before days had labels/warmups stored a day as a bare array of
+// rows. Normalize on read so old PlanWeek records keep working without a
+// one-time migration.
+export function normalizeDraftDays(raw: unknown): DraftDay[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((day, i) => {
+    if (Array.isArray(day)) {
+      return { label: `Day ${i + 1}`, rows: day, warmupIds: [], warmupRounds: 4 };
+    }
+    const d = day as Partial<DraftDay>;
+    return {
+      label: d.label ?? `Day ${i + 1}`,
+      rows: d.rows ?? [],
+      warmupIds: d.warmupIds ?? [],
+      warmupRounds: d.warmupRounds ?? 4,
+    };
+  });
+}

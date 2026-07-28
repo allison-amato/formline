@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Shell from "@/components/Shell";
 import PlanBuilder from "@/components/PlanBuilder";
-import type { DraftDay } from "@/lib/constants";
+import { normalizeDraftDays, type DraftDay } from "@/lib/constants";
 
 export default async function ClientBuilderPage({
   params,
@@ -21,7 +21,7 @@ export default async function ClientBuilderPage({
 
   const allWeeks: Record<number, DraftDay[]> = {};
   for (const record of allWeekRecords) {
-    allWeeks[record.week] = JSON.parse(record.days);
+    allWeeks[record.week] = normalizeDraftDays(JSON.parse(record.days));
   }
 
   const initialDraft: DraftDay[] | null = allWeeks[client.week] ?? null;
