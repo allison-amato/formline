@@ -29,6 +29,10 @@ export default function Stepper({
         gap: 2,
         padding: "2px",
         opacity: disabled ? 0.5 : 1,
+        // Without a floor, the number input (width: 0, flex-grow) collapses
+        // to invisible whenever this sits in a container that isn't itself
+        // width-constrained (e.g. a plain flex row instead of a table cell).
+        minWidth: 84,
       }}
     >
       <button
