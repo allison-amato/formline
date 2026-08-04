@@ -224,6 +224,16 @@ export default function PlanBuilder({
     incrementExerciseUse(ex.id).catch(() => {});
   }
 
+  function removeRow(idx: number) {
+    if (!window.confirm(t("builder.deleteExerciseConfirm", { day: days![dayIndex].label }))) return;
+    setDays((prev) => {
+      if (!prev) return prev;
+      const next = prev.map((day) => ({ ...day, rows: day.rows.map((row) => ({ ...row })) }));
+      next[dayIndex].rows = next[dayIndex].rows.filter((_, i) => i !== idx);
+      return next;
+    });
+  }
+
   function removeWarmupItem(exerciseId: string) {
     setDays((prev) => {
       if (!prev) return prev;
@@ -573,9 +583,14 @@ export default function PlanBuilder({
                         )}
                       </td>
                       <td style={{ padding: 10, textAlign: "right" }}>
-                        <button className="btn btn-secondary" style={{ fontSize: 11.5, padding: "5px 10px" }} onClick={() => openSwap(idx)}>
-                          {t("builder.swap")}
-                        </button>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button className="btn btn-secondary" style={{ fontSize: 11.5, padding: "5px 10px" }} onClick={() => openSwap(idx)}>
+                            {t("builder.swap")}
+                          </button>
+                          <button className="btn btn-ghost" style={{ fontSize: 11.5, padding: "5px 8px" }} title={t("builder.deleteExercise")} onClick={() => removeRow(idx)}>
+                            ×
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
